@@ -13,6 +13,7 @@ import de.guntram.mcmod.advancementinfo.accessors.AdvancementScreenAccessor;
 import de.guntram.mcmod.advancementinfo.accessors.AdvancementWidgetAccessor;
 import java.util.List;
 import net.minecraft.advancement.Advancement;
+import net.minecraft.advancement.PlacedAdvancement;
 import net.minecraft.client.gui.DrawContext;
 import net.minecraft.client.gui.screen.Screen;
 import net.minecraft.client.gui.screen.advancement.AdvancementTab;
@@ -27,6 +28,7 @@ import net.minecraft.util.Identifier;
 import org.lwjgl.glfw.GLFW;
 import org.spongepowered.asm.mixin.Final;
 import org.spongepowered.asm.mixin.Mixin;
+import org.spongepowered.asm.mixin.Overwrite;
 import org.spongepowered.asm.mixin.Shadow;
 import org.spongepowered.asm.mixin.injection.*;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
@@ -45,7 +47,7 @@ public abstract class AdvancementScreenMixin extends Screen implements Advanceme
     private int currentInfoWidth = config.infoWidth.calculate(width);
     private TextFieldWidget search;
     @Shadow @Final private ClientAdvancementManager advancementHandler;
-    @Shadow protected abstract AdvancementTab getTab(Advancement advancement);
+    @Shadow protected abstract AdvancementTab getTab(PlacedAdvancement advancement);
 
     @Shadow @Final private static Identifier WINDOW_TEXTURE;
 
@@ -200,17 +202,21 @@ public abstract class AdvancementScreenMixin extends Screen implements Advanceme
         }
     }
     
-    @Inject(method="onRootAdded", at=@At("HEAD"))
-    public void debugRootAdded(Advancement root, CallbackInfo ci) {
+//    @Inject(method="onRootAdded", at=@At("HEAD"))
+//    public void debugRootAdded(Advancement root, CallbackInfo ci) {
         // System.out.println("root added to screen; display="+root.getDisplay()+", id="+root.getId().toString());
-    }
+//    }
     
     // @Inject(method="mouseScrolled", at=@At("HEAD"), cancellable = true)
-    @Override
-    public boolean mouseScrolled(double X, double Y, double amount /*, CallbackInfoReturnable cir */) {
-        if (amount > 0 && scrollPos > 0) {
+    /**
+     * @author
+     * @reason
+     */
+    @Overwrite
+    public boolean mouseScrolled(double X, double Y, double horizontalAmount, double verticalAmount /*, CallbackInfoReturnable cir */) {
+        if (verticalAmount > 0 && scrollPos > 0) {
             scrollPos--;
-        } else if (amount < 0 && AdvancementInfo.cachedClickList != null 
+        } else if (verticalAmount < 0 && AdvancementInfo.cachedClickList != null
                 && scrollPos < AdvancementInfo.cachedClickListLineCount - ((height-2*config.marginY-45)/textRenderer.fontHeight - 1)) {
             scrollPos++;
         }
@@ -290,7 +296,7 @@ public abstract class AdvancementScreenMixin extends Screen implements Advanceme
         return advancementHandler;
     }
     
-    public AdvancementTab myGetTab(Advancement advancement) {
+    public AdvancementTab myGetTab(PlacedAdvancement advancement) {
         return getTab(advancement);
     }
 }
