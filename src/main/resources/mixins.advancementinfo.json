@@ -8,6 +8,7 @@
         "AdvancementTabMixin",
         "AdvancementTabTypeMixin",
         "AdvancementWidgetMixin",
+        "accessors.AdvancementTabAccessor",
         "accessors.AdvancementTabTypeAccessor",
         "accessors.AdvancementWidgetAccessor"
     ],
@@ -15,6 +16,7 @@
         "defaultRequire": 1
     },
     "mixins": [
+        "ClientAdvancementManagerMixin",
         "accessors.AdvancementScreenAccessor"
     ]
 }

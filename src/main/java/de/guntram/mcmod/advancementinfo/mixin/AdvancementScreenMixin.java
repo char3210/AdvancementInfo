@@ -10,7 +10,8 @@ import static de.guntram.mcmod.advancementinfo.AdvancementInfo.config;
 import de.guntram.mcmod.advancementinfo.AdvancementStep;
 import de.guntram.mcmod.advancementinfo.IteratorReceiver;
 import de.guntram.mcmod.advancementinfo.duck.IAdvancementsScreen;
-import de.guntram.mcmod.advancementinfo.mixin.accessors.AdvancementScreenAccessor;
+import de.guntram.mcmod.advancementinfo.duck.IClientAdvancementManager;
+import de.guntram.mcmod.advancementinfo.mixin.accessors.AdvancementTabAccessor;
 import de.guntram.mcmod.advancementinfo.mixin.accessors.AdvancementWidgetAccessor;
 
 import java.util.*;
@@ -47,9 +48,10 @@ public abstract class AdvancementScreenMixin extends Screen implements IAdvancem
     public AdvancementScreenMixin() { super(null); }
     
     private int scrollPos;
+    private boolean movingTabScroll;
     private double tabScrollPos;
     private double targetTabScrollPos;
-    private long lastUpdateNanos;
+    private double vel;
     private int currentInfoWidth = config.infoWidth.calculate(width);
     private TextFieldWidget search;
     @Shadow @Final private ClientAdvancementManager advancementHandler;
@@ -58,6 +60,8 @@ public abstract class AdvancementScreenMixin extends Screen implements IAdvancem
     @Shadow @Final private static Identifier WINDOW_TEXTURE;
 
     @Shadow @Final private Map<AdvancementEntry, AdvancementTab> tabs;
+
+    @Shadow private boolean movingTab;
 
     @ModifyConstant(method="render", constant=@Constant(intValue = 252), require=1)
     private int getRenderLeft(int orig) { return width - config.marginX*2; }
@@ -88,6 +92,18 @@ public abstract class AdvancementScreenMixin extends Screen implements IAdvancem
         this.search = new TextFieldWidget(textRenderer, width-config.marginX-currentInfoWidth+9, config.marginY+18, currentInfoWidth-18, 17, ScreenTexts.EMPTY);
     }
 
+    @Inject(method="init", at=@At("RETURN"))
+    private void initTabScroll(CallbackInfo ci) {
+        targetTabScrollPos = ((IClientAdvancementManager)advancementHandler).getTabScrollPos();
+        tabScrollPos = targetTabScrollPos;
+    }
+
+    @Inject(method="removed", at=@At("RETURN"))
+    private void saveScrollPos(CallbackInfo ci) {
+        ((IClientAdvancementManager)advancementHandler).setTabScrollPos((int)targetTabScrollPos);
+    }
+
+    // is this necessary? no
     @Inject(method = "render", at=@At("HEAD"))
     public void updateScrollPhys(DrawContext context, int mouseX, int mouseY, float delta, CallbackInfo ci) {
         double dt = client.getLastFrameDuration();
@@ -229,7 +245,16 @@ public abstract class AdvancementScreenMixin extends Screen implements IAdvancem
 //    public void debugRootAdded(Advancement root, CallbackInfo ci) {
         // System.out.println("root added to screen; display="+root.getDisplay()+", id="+root.getId().toString());
 //    }
-    
+
+    @Inject(method="onRootAdded", at=@At(value="INVOKE", target = "Ljava/util/Map;put(Ljava/lang/Object;Ljava/lang/Object;)Ljava/lang/Object;", shift = At.Shift.AFTER))
+    public void sortTabs(PlacedAdvancement root, CallbackInfo ci) {
+        ArrayList<AdvancementTab> advancementTabs = new ArrayList<>(tabs.values());
+        advancementTabs.sort(Comparator.comparing(tab -> tab.getTitle().getString()));
+        for (int i = 0; i < advancementTabs.size(); i++) {
+            ((AdvancementTabAccessor) advancementTabs.get(i)).setIndex(i);
+        }
+    }
+
     // @Inject(method="mouseScrolled", at=@At("HEAD"), cancellable = true)
     /**
      * @author
@@ -247,10 +272,42 @@ public abstract class AdvancementScreenMixin extends Screen implements IAdvancem
             }
         } else {
             targetTabScrollPos -= verticalAmount * 4;
-            targetTabScrollPos = MathHelper.clamp(targetTabScrollPos, 0, tabs.size() * 32);
+            targetTabScrollPos = clampTabScroll(targetTabScrollPos);
         }
         // System.out.println("scrollpos is now "+scrollPos+", needed lines "+AdvancementInfo.cachedClickListLineCount+", shown "+((height-2*config.marginY-45)/textRenderer.fontHeight - 1));
         return false;
+    }
+
+    private double clampTabScroll(double val) {
+        return MathHelper.clamp(val, 0, Math.max(tabs.size() * 32 - (width - 2 * config.marginX), 0));
+    }
+
+    @Inject(method="mouseDragged", at=@At("HEAD"), cancellable = true)
+    public void onTabsDrag(double mouseX, double mouseY, int button, double deltaX, double deltaY, CallbackInfoReturnable<Boolean> cir) {
+        if ((!movingTabScroll && mouseY > config.marginY) || button != 0 || movingTab) {
+            movingTabScroll = false;
+            return;
+        }
+
+        movingTabScroll = true;
+        tabScrollPos -= deltaX;
+        tabScrollPos = clampTabScroll(tabScrollPos);
+        targetTabScrollPos = tabScrollPos;
+        vel = -deltaX;
+        cir.setReturnValue(false);
+    }
+
+    // how do you do this in a compatible way
+    // i guess mixin to the base class and instanceof?? doesn't seem very performant or maybe it is idk
+    @Override
+    public boolean mouseReleased(double mouseX, double mouseY, int button) {
+        movingTab = false;
+        movingTabScroll = false;
+        if (vel != 0) {
+            targetTabScrollPos = clampTabScroll(tabScrollPos + vel * vel * Math.signum(vel));
+            vel = 0;
+        }
+        return super.mouseReleased(mouseX, mouseY, button);
     }
 
     @Inject(method="keyPressed", at=@At("HEAD"), cancellable = true)
