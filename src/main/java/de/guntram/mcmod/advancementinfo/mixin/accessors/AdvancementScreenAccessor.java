@@ -3,18 +3,21 @@
  * To change this template file, choose Tools | Templates
  * and open the template in the editor.
  */
-package de.guntram.mcmod.advancementinfo.accessors;
+package de.guntram.mcmod.advancementinfo.mixin.accessors;
 
-import net.minecraft.advancement.Advancement;
 import net.minecraft.advancement.PlacedAdvancement;
 import net.minecraft.client.gui.screen.advancement.AdvancementTab;
+import net.minecraft.client.gui.screen.advancement.AdvancementsScreen;
 import net.minecraft.client.network.ClientAdvancementManager;
+import org.spongepowered.asm.mixin.Mixin;
+import org.spongepowered.asm.mixin.gen.Accessor;
 
 /**
  *
  * @author gbl
  */
+@Mixin(AdvancementsScreen.class)
 public interface AdvancementScreenAccessor {
-        public ClientAdvancementManager getAdvancementHandler();
-        public AdvancementTab myGetTab(PlacedAdvancement advancement);
+        @Accessor
+        ClientAdvancementManager getAdvancementHandler();
 }

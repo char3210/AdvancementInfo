@@ -1,2 +1,3 @@
 accessWidener v2 named
 accessible class net/minecraft/client/gui/screen/advancement/AdvancementTabType
+accessible class net/minecraft/client/gui/screen/advancement/AdvancementTabType$Textures

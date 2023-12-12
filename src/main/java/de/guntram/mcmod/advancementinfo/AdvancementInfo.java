@@ -1,13 +1,10 @@
 package de.guntram.mcmod.advancementinfo;
 
-import com.google.gson.JsonElement;
-import com.google.gson.JsonObject;
-import de.guntram.mcmod.advancementinfo.accessors.AdvancementManagerAccess;
-import de.guntram.mcmod.advancementinfo.accessors.AdvancementProgressAccessor;
-import de.guntram.mcmod.advancementinfo.accessors.AdvancementScreenAccessor;
-import de.guntram.mcmod.advancementinfo.accessors.AdvancementWidgetAccessor;
+import de.guntram.mcmod.advancementinfo.duck.IAdvancementsScreen;
+import de.guntram.mcmod.advancementinfo.mixin.accessors.AdvancementManagerAccess;
+import de.guntram.mcmod.advancementinfo.mixin.accessors.AdvancementScreenAccessor;
+import de.guntram.mcmod.advancementinfo.mixin.accessors.AdvancementWidgetAccessor;
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -17,11 +14,9 @@ import me.shedaniel.autoconfig.ConfigHolder;
 import me.shedaniel.autoconfig.serializer.JanksonConfigSerializer;
 import net.fabricmc.api.ClientModInitializer;
 import net.fabricmc.loader.api.FabricLoader;
-import net.minecraft.advancement.Advancement;
 import net.minecraft.advancement.AdvancementDisplay;
 import net.minecraft.advancement.AdvancementProgress;
 import net.minecraft.advancement.PlacedAdvancement;
-import net.minecraft.advancement.criterion.CriterionConditions;
 import net.minecraft.client.gui.screen.advancement.AdvancementTab;
 import net.minecraft.client.gui.screen.advancement.AdvancementWidget;
 import net.minecraft.client.gui.screen.advancement.AdvancementsScreen;
@@ -137,7 +132,7 @@ public class AdvancementInfo implements ClientModInitializer
             ||  desc.toLowerCase().contains(text)) {
                 ArrayList<String> details = new ArrayList<>();
                 details.add(desc);
-                AdvancementTab tab = ((AdvancementScreenAccessor)screen).myGetTab(adv);
+                AdvancementTab tab = ((IAdvancementsScreen)screen).myGetTab(adv);
                 if (tab == null) {
                     LOGGER.info("no tab found for advancement {} title {} description {}", id, title, desc);
                     continue;

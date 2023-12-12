@@ -8,28 +8,39 @@ package de.guntram.mcmod.advancementinfo.mixin;
 import de.guntram.mcmod.advancementinfo.AdvancementInfo;
 import static de.guntram.mcmod.advancementinfo.AdvancementInfo.config;
 
+import de.guntram.mcmod.advancementinfo.duck.IAdvancementsScreen;
+import de.guntram.mcmod.advancementinfo.mixin.accessors.AdvancementScreenAccessor;
+import de.guntram.mcmod.advancementinfo.mixin.accessors.AdvancementTabTypeAccessor;
+import net.minecraft.advancement.AdvancementDisplay;
+import net.minecraft.advancement.PlacedAdvancement;
+import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.gui.DrawContext;
 import net.minecraft.client.gui.screen.advancement.AdvancementTab;
+import net.minecraft.client.gui.screen.advancement.AdvancementTabType;
 import net.minecraft.client.gui.screen.advancement.AdvancementsScreen;
-import net.minecraft.client.util.math.MatrixStack;
-import org.spongepowered.asm.mixin.Final;
-import org.spongepowered.asm.mixin.Mixin;
-import org.spongepowered.asm.mixin.Shadow;
+import net.minecraft.item.ItemStack;
+import net.minecraft.util.Identifier;
+import org.spongepowered.asm.mixin.*;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Constant;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.ModifyConstant;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
+import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
 /**
  *
  * @author gbl
+ * @author char321
  */
 @Mixin(AdvancementTab.class)
 public class AdvancementTabMixin {
     
     @Shadow @Final
     private AdvancementsScreen screen;
+    @Shadow @Final private AdvancementTabType type;
+    @Shadow @Final private int index;
+    @Shadow @Final private ItemStack icon;
     private int currentInfoWidth;
 
     @Inject(method="render", at = @At("HEAD"))
@@ -78,5 +89,61 @@ public class AdvancementTabMixin {
     @Inject(method="drawWidgetTooltip", at=@At("HEAD"))
     private void forgetMouseOver(DrawContext context, int mouseX, int mouseY, int x, int y, CallbackInfo ci) {
         AdvancementInfo.mouseOver = null;
+    }
+
+    //scrollable tabs
+    /**
+     * @author char321
+     * @reason overhaul tab types
+     */
+    @Overwrite
+    public void drawBackground(DrawContext context, int x, int y, boolean selected) {
+        Identifier texture;
+        if (selected) {
+            texture = ((AdvancementTabTypeAccessor) (Object) AdvancementTabType.ABOVE).getSelectedTextures().middle();
+        } else {
+            texture = ((AdvancementTabTypeAccessor) (Object) AdvancementTabType.ABOVE).getUnselectedTextures().middle();
+        }
+        context.drawGuiTexture(texture, x + getTabX(), y + getTabY(), 28, 32);
+    }
+
+    @Unique
+    private int getTabX() {
+        return 32 * index - ((IAdvancementsScreen)screen).getTabScrollPos();
+    }
+
+    @Unique
+    private int getTabY() {
+        return -32+4;
+    }
+
+    /**
+     * @author char321
+     * @reason overhaul tab types
+     */
+    @Overwrite
+    public void drawIcon(DrawContext context, int x, int y) {
+        x = x + this.getTabX() + 6;
+        y = y + this.getTabY() + 9;
+
+        context.drawItemWithoutEntity(icon, x, y);
+    }
+
+    /**
+     * @author char321
+     * @reason overhaul tab types
+     */
+    @Overwrite
+    public boolean isClickOnTab(int screenX, int screenY, double mouseX, double mouseY) {
+        int x = screenX + this.getTabX();
+        int y = screenY + this.getTabY();
+        return mouseX > (double)x && mouseX < (double)(x + 28) && mouseY > (double)y && mouseY < (double)(y + 32);
+    }
+
+    @Inject(method="create", at=@At(value="INVOKE", target = "Lnet/minecraft/client/gui/screen/advancement/AdvancementTabType;values()[Lnet/minecraft/client/gui/screen/advancement/AdvancementTabType;"), cancellable = true)
+    private static void createAdvancementTab(MinecraftClient client, AdvancementsScreen screen, int index, PlacedAdvancement root, CallbackInfoReturnable<AdvancementTab> cir) {
+        cir.cancel();
+        //noinspection OptionalGetWithoutIsPresent
+        cir.setReturnValue(new AdvancementTab(client, screen, AdvancementTabType.ABOVE, index, root, root.getAdvancement().display().get()));
     }
 }

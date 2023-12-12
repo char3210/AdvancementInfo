@@ -1,4 +1,4 @@
-package de.guntram.mcmod.advancementinfo.accessors;
+package de.guntram.mcmod.advancementinfo.mixin.accessors;
 
 import net.minecraft.advancement.AdvancementManager;
 import net.minecraft.advancement.PlacedAdvancement;

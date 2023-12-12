@@ -9,10 +9,13 @@ import de.guntram.mcmod.advancementinfo.AdvancementInfo;
 import static de.guntram.mcmod.advancementinfo.AdvancementInfo.config;
 import de.guntram.mcmod.advancementinfo.AdvancementStep;
 import de.guntram.mcmod.advancementinfo.IteratorReceiver;
-import de.guntram.mcmod.advancementinfo.accessors.AdvancementScreenAccessor;
-import de.guntram.mcmod.advancementinfo.accessors.AdvancementWidgetAccessor;
-import java.util.List;
-import net.minecraft.advancement.Advancement;
+import de.guntram.mcmod.advancementinfo.duck.IAdvancementsScreen;
+import de.guntram.mcmod.advancementinfo.mixin.accessors.AdvancementScreenAccessor;
+import de.guntram.mcmod.advancementinfo.mixin.accessors.AdvancementWidgetAccessor;
+
+import java.util.*;
+
+import net.minecraft.advancement.AdvancementEntry;
 import net.minecraft.advancement.PlacedAdvancement;
 import net.minecraft.client.gui.DrawContext;
 import net.minecraft.client.gui.screen.Screen;
@@ -22,9 +25,9 @@ import net.minecraft.client.gui.screen.advancement.AdvancementsScreen;
 import net.minecraft.client.gui.widget.TextFieldWidget;
 import net.minecraft.client.network.ClientAdvancementManager;
 import net.minecraft.client.resource.language.I18n;
-import net.minecraft.client.util.math.MatrixStack;
 import net.minecraft.screen.ScreenTexts;
 import net.minecraft.util.Identifier;
+import net.minecraft.util.math.MathHelper;
 import org.lwjgl.glfw.GLFW;
 import org.spongepowered.asm.mixin.Final;
 import org.spongepowered.asm.mixin.Mixin;
@@ -39,17 +42,22 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
  * @author gbl
  */
 @Mixin(AdvancementsScreen.class)
-public abstract class AdvancementScreenMixin extends Screen implements AdvancementScreenAccessor {
+public abstract class AdvancementScreenMixin extends Screen implements IAdvancementsScreen {
     
     public AdvancementScreenMixin() { super(null); }
     
     private int scrollPos;
+    private double tabScrollPos;
+    private double targetTabScrollPos;
+    private long lastUpdateNanos;
     private int currentInfoWidth = config.infoWidth.calculate(width);
     private TextFieldWidget search;
     @Shadow @Final private ClientAdvancementManager advancementHandler;
     @Shadow protected abstract AdvancementTab getTab(PlacedAdvancement advancement);
 
     @Shadow @Final private static Identifier WINDOW_TEXTURE;
+
+    @Shadow @Final private Map<AdvancementEntry, AdvancementTab> tabs;
 
     @ModifyConstant(method="render", constant=@Constant(intValue = 252), require=1)
     private int getRenderLeft(int orig) { return width - config.marginX*2; }
@@ -78,6 +86,21 @@ public abstract class AdvancementScreenMixin extends Screen implements Advanceme
     private void initSearchField(CallbackInfo ci) {
         currentInfoWidth = config.infoWidth.calculate(width);
         this.search = new TextFieldWidget(textRenderer, width-config.marginX-currentInfoWidth+9, config.marginY+18, currentInfoWidth-18, 17, ScreenTexts.EMPTY);
+    }
+
+    @Inject(method = "render", at=@At("HEAD"))
+    public void updateScrollPhys(DrawContext context, int mouseX, int mouseY, float delta, CallbackInfo ci) {
+        double dt = client.getLastFrameDuration();
+        // x(t)= t^2
+        double x = Math.abs(targetTabScrollPos - tabScrollPos);
+        double dx = Math.sqrt(x) * dt * 4;
+        if (dx > x) {
+            tabScrollPos = targetTabScrollPos;
+        } else if (tabScrollPos < targetTabScrollPos) {
+            tabScrollPos += dx;
+        } else {
+            tabScrollPos -= dx;
+        }
     }
     
     @Inject(method="render",
@@ -214,11 +237,17 @@ public abstract class AdvancementScreenMixin extends Screen implements Advanceme
      */
     @Overwrite
     public boolean mouseScrolled(double X, double Y, double horizontalAmount, double verticalAmount /*, CallbackInfoReturnable cir */) {
-        if (verticalAmount > 0 && scrollPos > 0) {
-            scrollPos--;
-        } else if (verticalAmount < 0 && AdvancementInfo.cachedClickList != null
-                && scrollPos < AdvancementInfo.cachedClickListLineCount - ((height-2*config.marginY-45)/textRenderer.fontHeight - 1)) {
-            scrollPos++;
+//        System.out.println("mousescrolled y " + Y + " tabScrollPos " + tabScrollPos);
+        if (Y > config.marginY) {
+            if (verticalAmount > 0 && scrollPos > 0) {
+                scrollPos--;
+            } else if (verticalAmount < 0 && AdvancementInfo.cachedClickList != null
+                    && scrollPos < AdvancementInfo.cachedClickListLineCount - ((height-2*config.marginY-45)/textRenderer.fontHeight - 1)) {
+                scrollPos++;
+            }
+        } else {
+            targetTabScrollPos -= verticalAmount * 4;
+            targetTabScrollPos = MathHelper.clamp(targetTabScrollPos, 0, tabs.size() * 32);
         }
         // System.out.println("scrollpos is now "+scrollPos+", needed lines "+AdvancementInfo.cachedClickListLineCount+", shown "+((height-2*config.marginY-45)/textRenderer.fontHeight - 1));
         return false;
@@ -291,12 +320,11 @@ public abstract class AdvancementScreenMixin extends Screen implements Advanceme
         }
     }
     
-    @Override
-    public ClientAdvancementManager getAdvancementHandler() {
-        return advancementHandler;
-    }
-    
     public AdvancementTab myGetTab(PlacedAdvancement advancement) {
         return getTab(advancement);
+    }
+
+    public int getTabScrollPos() {
+        return (int) tabScrollPos;
     }
 }
